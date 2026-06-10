@@ -1,9 +1,10 @@
 from scipy.signal import find_peaks
 import numpy as np
 
+
 def detect_double_bottom(close):
 
-    prices = close.values
+    prices = np.array(close).flatten()
 
     valleys, _ = find_peaks(-prices, distance=20)
 
@@ -20,7 +21,7 @@ def detect_double_bottom(close):
 
 def detect_inverse_head_shoulders(close):
 
-    prices = close.values
+    prices = np.array(close).flatten()
 
     valleys, _ = find_peaks(-prices, distance=15)
 
@@ -36,7 +37,10 @@ def detect_inverse_head_shoulders(close):
 
 def detect_ascending_triangle(close):
 
-    prices = close.values[-60:]
+    prices = np.array(close).flatten()[-60:]
+
+    if len(prices) < 60:
+        return False
 
     resistance = np.max(prices)
 
@@ -47,8 +51,8 @@ def detect_ascending_triangle(close):
 
     lows = []
 
-    for i in range(1, len(prices)-1):
-        if prices[i] < prices[i-1] and prices[i] < prices[i+1]:
+    for i in range(1, len(prices) - 1):
+        if prices[i] < prices[i - 1] and prices[i] < prices[i + 1]:
             lows.append(prices[i])
 
     if len(lows) < 3:
