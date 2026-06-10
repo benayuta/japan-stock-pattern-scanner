@@ -7,7 +7,7 @@ from patterns import (
 )
 
 from mailer import send_mail
-from tickers import TICKERS
+from tickers_loader import load_tickers
 
 
 def score_pattern(close, volume):
@@ -40,9 +40,11 @@ def score_pattern(close, volume):
 
 def run():
 
+    tickers = load_tickers()
+
     candidates = []
 
-    for ticker, name in TICKERS.items():
+    for ticker, name in tickers.items():
 
         print(f"checking {ticker}")
 
@@ -86,18 +88,10 @@ def run():
 
             if pattern:
 
-                score = score_pattern(
-                    close,
-                    volume
-                )
+                score = score_pattern(close, volume)
 
                 candidates.append(
-                    (
-                        score,
-                        ticker,
-                        name,
-                        pattern
-                    )
+                    (score, ticker, name, pattern)
                 )
 
         except Exception as e:
@@ -110,7 +104,7 @@ def run():
 
     body = "【日本株ブレイクアウト監視】\n\n"
 
-    if len(candidates) == 0:
+    if not candidates:
 
         body += "本日は有力候補なし"
 
