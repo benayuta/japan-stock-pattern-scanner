@@ -12,28 +12,28 @@ from tickers_loader import load_tickers
 
 def score_pattern(close, volume):
 
-    score = 0
+    score = 50
 
     ma25 = close.rolling(25).mean()
     ma75 = close.rolling(75).mean()
 
     if ma25.iloc[-1] > ma75.iloc[-1]:
-        score += 30
+        score += 15
 
     if close.iloc[-1] > ma25.iloc[-1]:
-        score += 20
+        score += 10
 
     vol20 = volume.tail(20).mean()
 
-    if volume.iloc[-1] > vol20 * 1.2:
-        score += 30
+    if volume.iloc[-1] > vol20:
+        score += 15
 
     momentum = (
         (close.iloc[-1] - close.iloc[-20])
         / close.iloc[-20]
     ) * 100
 
-    score += min(max(int(momentum), 0), 20)
+    score += min(max(int(momentum), 0), 10)
 
     return min(score, 100)
 
@@ -42,13 +42,9 @@ def run():
 
     tickers = load_tickers()
 
-    print(f"銘柄数={len(tickers)}")
-
     candidates = []
 
     for ticker, name in tickers.items():
-
-        print(f"checking {ticker}")
 
         try:
 
@@ -57,31 +53,8 @@ def run():
             if df.empty:
                 continue
 
-            if "Close" not in df.columns:
-                continue
-
-            if "Volume" not in df.columns:
-                continue
-
             close = df["Close"]
             volume = df["Volume"]
-
-            ma25 = close.rolling(25).mean()
-            ma75 = close.rolling(75).mean()
-
-            if len(ma75.dropna()) == 0:
-                continue
-
-            if ma25.iloc[-1] <= ma75.iloc[-1]:
-                continue
-
-            if close.iloc[-1] <= ma25.iloc[-1]:
-                continue
-
-            vol20 = volume.tail(20).mean()
-
-            if volume.iloc[-1] < vol20 * 1.2:
-                continue
 
             pattern = None
 
@@ -110,39 +83,32 @@ def run():
                     )
                 )
 
-        except Exception as e:
-            print(f"ERROR {ticker}: {e}")
+        except:
+            pass
 
     candidates.sort(
         reverse=True,
         key=lambda x: x[0]
     )
 
-    body = "【TOPIX500 ブレイクアウト監視】\n\n"
+    body = "【TOPIX500 パターンスキャン】\n\n"
 
     body += f"監視銘柄数: {len(tickers)}\n\n"
 
-    if len(candidates) == 0:
+    if not candidates:
 
-        body += "本日は有力候補なし"
+        body += "該当なし"
 
     else:
 
-        for score, ticker, name, pattern in candidates[:20]:
-
-            stars = "★" * max(
-                1,
-                min(5, score // 20)
-            )
+        for score, ticker, name, pattern in candidates[:30]:
 
             body += (
-                f"{stars}\n"
-                f"{ticker} {name}\n"
+                f"{ticker} "
+                f"{name}\n"
                 f"{pattern}\n"
                 f"スコア:{score}\n\n"
             )
-
-    print(body)
 
     send_mail(body)
 
