@@ -57,7 +57,30 @@ def run():
             if "Close" not in df.columns:
                 continue
 
+            if "Volume" not in df.columns:
+                continue
+
             close = df["Close"]
+            volume = df["Volume"]
+
+            ma25 = close.rolling(25).mean()
+            ma75 = close.rolling(75).mean()
+
+            if len(ma75.dropna()) == 0:
+                continue
+
+            # 上昇トレンド条件
+            if ma25.iloc[-1] <= ma75.iloc[-1]:
+                continue
+
+            if close.iloc[-1] <= ma25.iloc[-1]:
+                continue
+
+            # 出来高条件
+            vol20 = volume.tail(20).mean()
+
+            if volume.iloc[-1] < vol20:
+                continue
 
             score = score_pattern(close)
 
@@ -77,7 +100,7 @@ def run():
                 )
 
         except Exception as e:
-            print(e)
+            print(f"ERROR {ticker}: {e}")
 
     body = "【日本株パターンスキャン】\n\n"
 
