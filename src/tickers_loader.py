@@ -9,18 +9,32 @@ def load_tickers():
     csv_path = os.path.join(
         os.path.dirname(__file__),
         "..",
-        "data",
-        "topix500.csv"
+        "topixweight_j.csv"
     )
 
-    with open(csv_path, encoding="utf-8") as f:
+    with open(
+        csv_path,
+        encoding="cp932"
+    ) as f:
 
         reader = csv.DictReader(f)
 
         for row in reader:
 
-            tickers[
-                row["ticker"]
-            ] = row["name"]
+            group = row["ニューインデックス区分"]
+
+            if group in [
+                "TOPIX Core30",
+                "TOPIX Large70",
+                "TOPIX Mid400"
+            ]:
+
+                ticker = str(row["コード"]) + ".T"
+
+                tickers[ticker] = row["銘柄名"]
+
+    print(
+        f"Loaded {len(tickers)} tickers"
+    )
 
     return tickers
