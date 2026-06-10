@@ -25,7 +25,7 @@ def score_pattern(close, volume):
 
     vol20 = volume.tail(20).mean()
 
-    if volume.iloc[-1] > vol20 * 1.5:
+    if volume.iloc[-1] > vol20 * 1.2:
         score += 30
 
     momentum = (
@@ -42,6 +42,8 @@ def run():
 
     tickers = load_tickers()
 
+    print(f"銘柄数={len(tickers)}")
+
     candidates = []
 
     for ticker, name in tickers.items():
@@ -53,6 +55,12 @@ def run():
             df = get_stock_data(ticker)
 
             if df.empty:
+                continue
+
+            if "Close" not in df.columns:
+                continue
+
+            if "Volume" not in df.columns:
                 continue
 
             close = df["Close"]
@@ -72,7 +80,7 @@ def run():
 
             vol20 = volume.tail(20).mean()
 
-            if volume.iloc[-1] < vol20 * 1.5:
+            if volume.iloc[-1] < vol20 * 1.2:
                 continue
 
             pattern = None
@@ -88,29 +96,39 @@ def run():
 
             if pattern:
 
-                score = score_pattern(close, volume)
+                score = score_pattern(
+                    close,
+                    volume
+                )
 
                 candidates.append(
-                    (score, ticker, name, pattern)
+                    (
+                        score,
+                        ticker,
+                        name,
+                        pattern
+                    )
                 )
 
         except Exception as e:
-            print(e)
+            print(f"ERROR {ticker}: {e}")
 
     candidates.sort(
         reverse=True,
         key=lambda x: x[0]
     )
 
-    body = "【日本株ブレイクアウト監視】\n\n"
+    body = "【TOPIX500 ブレイクアウト監視】\n\n"
 
-    if not candidates:
+    body += f"監視銘柄数: {len(tickers)}\n\n"
+
+    if len(candidates) == 0:
 
         body += "本日は有力候補なし"
 
     else:
 
-        for score, ticker, name, pattern in candidates[:10]:
+        for score, ticker, name, pattern in candidates[:20]:
 
             stars = "★" * max(
                 1,
@@ -123,6 +141,8 @@ def run():
                 f"{pattern}\n"
                 f"スコア:{score}\n\n"
             )
+
+    print(body)
 
     send_mail(body)
 
