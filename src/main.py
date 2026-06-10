@@ -10,26 +10,37 @@ from mailer import send_mail
 from tickers import TICKERS
 
 
-def score_pattern(close):
+def score_pattern(close, volume):
 
-    recent = close.tail(20)
+    score = 0
 
-    high = recent.max()
-    low = recent.min()
+    ma25 = close.rolling(25).mean()
+    ma75 = close.rolling(75).mean()
 
-    if low == 0:
-        return 0
+    if ma25.iloc[-1] > ma75.iloc[-1]:
+        score += 30
 
-    score = int(((high - low) / low) * 100)
+    if close.iloc[-1] > ma25.iloc[-1]:
+        score += 20
+
+    vol20 = volume.tail(20).mean()
+
+    if volume.iloc[-1] > vol20 * 1.5:
+        score += 30
+
+    momentum = (
+        (close.iloc[-1] - close.iloc[-20])
+        / close.iloc[-20]
+    ) * 100
+
+    score += min(max(int(momentum), 0), 20)
 
     return min(score, 100)
 
 
 def run():
 
-    inverse_list = []
-    double_list = []
-    triangle_list = []
+    candidates = []
 
     for ticker, name in TICKERS.items():
 
@@ -42,12 +53,6 @@ def run():
             if df.empty:
                 continue
 
-            if "Close" not in df.columns:
-                continue
-
-            if "Volume" not in df.columns:
-                continue
-
             close = df["Close"]
             volume = df["Volume"]
 
@@ -57,61 +62,73 @@ def run():
             if len(ma75.dropna()) == 0:
                 continue
 
-            # 上昇トレンド条件
             if ma25.iloc[-1] <= ma75.iloc[-1]:
                 continue
 
             if close.iloc[-1] <= ma25.iloc[-1]:
                 continue
 
-            # 出来高条件
             vol20 = volume.tail(20).mean()
 
-            if volume.iloc[-1] < vol20:
+            if volume.iloc[-1] < vol20 * 1.5:
                 continue
 
-            score = score_pattern(close)
+            pattern = None
 
             if detect_inverse_head_shoulders(close):
-                inverse_list.append(
-                    f"{ticker} {name} 信頼度:{score}"
+                pattern = "逆三尊"
+
+            elif detect_double_bottom(close):
+                pattern = "ダブルボトム"
+
+            elif detect_ascending_triangle(close):
+                pattern = "上昇トライアングル"
+
+            if pattern:
+
+                score = score_pattern(
+                    close,
+                    volume
                 )
 
-            if detect_double_bottom(close):
-                double_list.append(
-                    f"{ticker} {name} 信頼度:{score}"
-                )
-
-            if detect_ascending_triangle(close):
-                triangle_list.append(
-                    f"{ticker} {name} 信頼度:{score}"
+                candidates.append(
+                    (
+                        score,
+                        ticker,
+                        name,
+                        pattern
+                    )
                 )
 
         except Exception as e:
-            print(f"ERROR {ticker}: {e}")
+            print(e)
 
-    body = "【日本株パターンスキャン】\n\n"
+    candidates.sort(
+        reverse=True,
+        key=lambda x: x[0]
+    )
 
-    body += "■逆三尊\n"
+    body = "【日本株ブレイクアウト監視】\n\n"
 
-    if inverse_list:
-        body += "\n".join(inverse_list)
+    if len(candidates) == 0:
+
+        body += "本日は有力候補なし"
+
     else:
-        body += "該当なし"
 
-    body += "\n\n■ダブルボトム\n"
+        for score, ticker, name, pattern in candidates[:10]:
 
-    if double_list:
-        body += "\n".join(double_list)
-    else:
-        body += "該当なし"
+            stars = "★" * max(
+                1,
+                min(5, score // 20)
+            )
 
-    body += "\n\n■上昇トライアングル\n"
-
-    if triangle_list:
-        body += "\n".join(triangle_list)
-    else:
-        body += "該当なし"
+            body += (
+                f"{stars}\n"
+                f"{ticker} {name}\n"
+                f"{pattern}\n"
+                f"スコア:{score}\n\n"
+            )
 
     send_mail(body)
 
