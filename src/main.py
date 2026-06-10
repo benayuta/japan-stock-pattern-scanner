@@ -8,35 +8,42 @@ from patterns import (
 
 from mailer import send_mail
 
-# テスト用100銘柄版（まず安定動作確認）
-TICKERS = [
-    "1301.T","1332.T","1333.T","1605.T","1721.T",
-    "1801.T","1802.T","1803.T","1808.T","1812.T",
-    "1925.T","1928.T","1963.T","2002.T","2269.T",
-    "2282.T","2413.T","2501.T","2502.T","2503.T",
-    "2768.T","2801.T","2802.T","2871.T","2914.T",
-    "3086.T","3099.T","3382.T","3401.T","3402.T",
-    "3861.T","3863.T","4004.T","4005.T","4021.T",
-    "4042.T","4063.T","4183.T","4188.T","4208.T",
-    "4324.T","4452.T","4502.T","4503.T","4506.T",
-    "4519.T","4523.T","4543.T","4568.T","4578.T",
-    "4689.T","4704.T","4751.T","4901.T","4902.T",
-    "4911.T","5020.T","5101.T","5108.T","5201.T",
-    "5332.T","5333.T","5401.T","5406.T","5411.T",
-    "5711.T","5713.T","5801.T","5802.T","5803.T",
-    "6098.T","6178.T","6301.T","6302.T","6367.T",
-    "6501.T","6503.T","6504.T","6594.T","6701.T",
-    "6723.T","6752.T","6758.T","6762.T","6902.T",
-    "6954.T","6971.T","6981.T","7011.T","7012.T",
-    "7013.T","7201.T","7203.T","7261.T","7267.T"
-]
+TICKERS = {
+    "7203.T": "トヨタ自動車",
+    "6758.T": "ソニーグループ",
+    "9984.T": "ソフトバンクグループ",
+    "8035.T": "東京エレクトロン",
+    "6501.T": "日立製作所",
+    "7011.T": "三菱重工業",
+    "8306.T": "三菱UFJFG",
+    "9983.T": "ファーストリテイリング",
+    "9432.T": "NTT",
+    "8058.T": "三菱商事"
+}
+
+
+def score_pattern(close):
+
+    recent = close.tail(20)
+
+    high = recent.max()
+    low = recent.min()
+
+    if low == 0:
+        return 0
+
+    score = int(((high - low) / low) * 100)
+
+    return min(score, 100)
 
 
 def run():
 
-    results = []
+    inverse_list = []
+    double_list = []
+    triangle_list = []
 
-    for ticker in TICKERS:
+    for ticker, name in TICKERS.items():
 
         print(f"checking {ticker}")
 
@@ -52,19 +59,48 @@ def run():
 
             close = df["Close"]
 
-            if detect_double_bottom(close):
-                results.append(f"{ticker} ダブルボトム")
+            score = score_pattern(close)
 
             if detect_inverse_head_shoulders(close):
-                results.append(f"{ticker} 逆三尊")
+                inverse_list.append(
+                    f"{ticker} {name} 信頼度:{score}"
+                )
+
+            if detect_double_bottom(close):
+                double_list.append(
+                    f"{ticker} {name} 信頼度:{score}"
+                )
 
             if detect_ascending_triangle(close):
-                results.append(f"{ticker} 上昇トライアングル")
+                triangle_list.append(
+                    f"{ticker} {name} 信頼度:{score}"
+                )
 
         except Exception as e:
-            print(f"ERROR {ticker}: {e}")
+            print(e)
 
-    body = "\n".join(results) if results else "本日は該当銘柄なし"
+    body = "【日本株パターンスキャン】\n\n"
+
+    body += "■逆三尊\n"
+
+    if inverse_list:
+        body += "\n".join(inverse_list)
+    else:
+        body += "該当なし"
+
+    body += "\n\n■ダブルボトム\n"
+
+    if double_list:
+        body += "\n".join(double_list)
+    else:
+        body += "該当なし"
+
+    body += "\n\n■上昇トライアングル\n"
+
+    if triangle_list:
+        body += "\n".join(triangle_list)
+    else:
+        body += "該当なし"
 
     send_mail(body)
 
