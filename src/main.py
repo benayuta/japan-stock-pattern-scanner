@@ -10,39 +10,15 @@ from mailer import send_mail
 from tickers_loader import load_tickers
 
 
-def score_pattern(close, volume):
-
-    score = 50
-
-    ma25 = close.rolling(25).mean()
-    ma75 = close.rolling(75).mean()
-
-    if ma25.iloc[-1] > ma75.iloc[-1]:
-        score += 15
-
-    if close.iloc[-1] > ma25.iloc[-1]:
-        score += 10
-
-    vol20 = volume.tail(20).mean()
-
-    if volume.iloc[-1] > vol20:
-        score += 15
-
-    momentum = (
-        (close.iloc[-1] - close.iloc[-20])
-        / close.iloc[-20]
-    ) * 100
-
-    score += min(max(int(momentum), 0), 10)
-
-    return min(score, 100)
-
-
 def run():
 
     tickers = load_tickers()
 
-    candidates = []
+    inverse_count = 0
+    double_count = 0
+    triangle_count = 0
+
+    samples = []
 
     for ticker, name in tickers.items():
 
@@ -54,61 +30,52 @@ def run():
                 continue
 
             close = df["Close"]
-            volume = df["Volume"]
-
-            pattern = None
 
             if detect_inverse_head_shoulders(close):
-                pattern = "逆三尊"
 
-            elif detect_double_bottom(close):
-                pattern = "ダブルボトム"
+                inverse_count += 1
 
-            elif detect_ascending_triangle(close):
-                pattern = "上昇トライアングル"
-
-            if pattern:
-
-                score = score_pattern(
-                    close,
-                    volume
-                )
-
-                candidates.append(
-                    (
-                        score,
-                        ticker,
-                        name,
-                        pattern
+                if len(samples) < 10:
+                    samples.append(
+                        f"{ticker} {name} 逆三尊"
                     )
-                )
 
-        except:
-            pass
+            if detect_double_bottom(close):
 
-    candidates.sort(
-        reverse=True,
-        key=lambda x: x[0]
-    )
+                double_count += 1
 
-    body = "【TOPIX500 パターンスキャン】\n\n"
+                if len(samples) < 10:
+                    samples.append(
+                        f"{ticker} {name} ダブルボトム"
+                    )
 
-    body += f"監視銘柄数: {len(tickers)}\n\n"
+            if detect_ascending_triangle(close):
 
-    if not candidates:
+                triangle_count += 1
 
-        body += "該当なし"
+                if len(samples) < 10:
+                    samples.append(
+                        f"{ticker} {name} 上昇トライアングル"
+                    )
 
-    else:
+        except Exception as e:
+            print(e)
 
-        for score, ticker, name, pattern in candidates[:30]:
+    body = f"""
+【診断モード】
 
-            body += (
-                f"{ticker} "
-                f"{name}\n"
-                f"{pattern}\n"
-                f"スコア:{score}\n\n"
-            )
+監視銘柄数: {len(tickers)}
+
+逆三尊: {inverse_count}
+ダブルボトム: {double_count}
+上昇トライアングル: {triangle_count}
+
+--- サンプル ---
+
+{chr(10).join(samples)}
+"""
+
+    print(body)
 
     send_mail(body)
 
