@@ -7,19 +7,7 @@ from patterns import (
 )
 
 from mailer import send_mail
-
-TICKERS = {
-    "7203.T": "トヨタ自動車",
-    "6758.T": "ソニーグループ",
-    "9984.T": "ソフトバンクグループ",
-    "8035.T": "東京エレクトロン",
-    "6501.T": "日立製作所",
-    "7011.T": "三菱重工業",
-    "8306.T": "三菱UFJFG",
-    "9983.T": "ファーストリテイリング",
-    "9432.T": "NTT",
-    "8058.T": "三菱商事"
-}
+from tickers import TICKERS
 
 
 def score_pattern(close):
