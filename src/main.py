@@ -10,13 +10,50 @@ from mailer import send_mail
 from tickers_loader import load_tickers
 
 
+def score_stock(close, volume):
+
+    score = 0
+
+    try:
+
+        ma25 = close.rolling(25).mean()
+        ma75 = close.rolling(75).mean()
+
+        if ma25.iloc[-1] > ma75.iloc[-1]:
+            score += 30
+
+        if close.iloc[-1] > ma25.iloc[-1]:
+            score += 20
+
+        vol20 = volume.tail(20).mean()
+
+        if volume.iloc[-1] > vol20:
+            score += 20
+
+        momentum = (
+            (
+                float(close.iloc[-1])
+                - float(close.iloc[-20])
+            )
+            / float(close.iloc[-20])
+        ) * 100
+
+        score += min(
+            max(int(momentum), 0),
+            30
+        )
+
+    except:
+        pass
+
+    return score
+
+
 def run():
 
     tickers = load_tickers()
 
     candidates = []
-
-    error_count = 0
 
     for ticker, name in tickers.items():
 
@@ -41,28 +78,48 @@ def run():
             if detect_ascending_triangle(close):
                 patterns.append("上昇トライアングル")
 
-            if patterns:
+            if not patterns:
+                continue
 
-                candidates.append(
-                    f"{ticker} {name} {'/'.join(patterns)}"
+            score = score_stock(
+                close,
+                volume
+            )
+
+            candidates.append(
+                (
+                    score,
+                    ticker,
+                    name,
+                    ",".join(patterns)
                 )
+            )
 
-        except Exception as e:
+        except:
+            pass
 
-            error_count += 1
+    candidates.sort(
+        reverse=True,
+        key=lambda x: x[0]
+    )
 
-    body = f"""
-【診断２】
+    body = "【TOPIX500 有力候補ランキング】\n\n"
 
-監視銘柄数: {len(tickers)}
+    body += f"監視銘柄数: {len(tickers)}\n"
+    body += f"候補数: {len(candidates)}\n\n"
 
-候補数: {len(candidates)}
+    rank = 1
 
-エラー数: {error_count}
+    for score, ticker, name, pattern in candidates[:20]:
 
-"""
+        body += (
+            f"{rank}位\n"
+            f"{ticker} {name}\n"
+            f"{pattern}\n"
+            f"スコア:{score}\n\n"
+        )
 
-    body += "\n".join(candidates[:20])
+        rank += 1
 
     send_mail(body)
 
