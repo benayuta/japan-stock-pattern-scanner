@@ -1,4 +1,5 @@
 from datetime import datetime
+from zoneinfo import ZoneInfo
 
 from data_loader import get_stock_data
 from tickers_loader import load_tickers
@@ -36,7 +37,7 @@ def is_psar_bullish(df):
 
         return close.iloc[-1] > psar_values.iloc[-1]
 
-    except:
+    except Exception:
 
         return False
 
@@ -46,7 +47,6 @@ def score_stock(df):
     score = 0
 
     close = df["Close"].squeeze()
-    volume = df["Volume"].squeeze()
 
     if len(close) < 75:
         return 0
@@ -58,11 +58,6 @@ def score_stock(df):
         score += 20
 
     if ma25.iloc[-1] > ma75.iloc[-1]:
-        score += 20
-
-    vol20 = volume.tail(20).mean()
-
-    if vol20 > 0 and volume.iloc[-1] > vol20 * 1.2:
         score += 20
 
     high52 = close.tail(252).max()
@@ -82,9 +77,9 @@ def run():
 
     candidates = []
 
-    today = datetime.now().strftime(
-        "%Y-%m-%d"
-    )
+    today = datetime.now(
+        ZoneInfo("Asia/Tokyo")
+    ).strftime("%Y-%m-%d")
 
     for ticker, name in tickers.items():
 
@@ -96,6 +91,9 @@ def run():
                 continue
 
             close = df["Close"].squeeze()
+
+            if len(close) < 100:
+                continue
 
             current_price = round(
                 float(close.iloc[-1]),
@@ -109,8 +107,7 @@ def run():
 
             change_pct = round(
                 (
-                    current_price
-                    - prev_price
+                    current_price - prev_price
                 )
                 / prev_price
                 * 100,
@@ -133,8 +130,14 @@ def run():
 
             score = score_stock(df)
 
-            if score < 40:
+            # 以前の40点フィルターを緩和
+            if score < 20:
                 continue
+
+            psar_text = ""
+
+            if is_psar_bullish(df):
+                psar_text = "PSAR点灯"
 
             fund = get_fundamentals(
                 ticker
@@ -149,13 +152,16 @@ def run():
                     current_price,
                     change_pct,
                     fund["yield"],
-                    fund["month"]
+                    fund["month"],
+                    psar_text
                 )
             )
 
         except Exception as e:
 
-            print(e)
+            print(
+                f"{ticker} error: {e}"
+            )
 
     candidates.sort(
         reverse=True,
@@ -163,7 +169,7 @@ def run():
     )
 
     body = (
-        f"【TOPIX500 有力候補 V7】\n"
+        f"【TOPIX500 有力候補 V8】\n"
         f"作成日:{today}\n\n"
     )
 
@@ -185,13 +191,15 @@ def run():
             price,
             change_pct,
             div_yield,
-            div_month
+            div_month,
+            psar_text
         ) = item
 
         body += (
             f"{rank}位\n"
             f"{ticker} {name}\n"
             f"{pattern}\n"
+            f"{psar_text}\n"
             f"株価:{price}円\n"
             f"前日比:{change_pct}%\n"
             f"配当利回り:{div_yield}%\n"
