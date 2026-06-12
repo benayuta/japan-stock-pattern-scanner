@@ -10,43 +10,50 @@ from mailer import send_mail
 from tickers_loader import load_tickers
 
 
-def score_stock(close, volume):
+def score_stock(df):
 
-    score = 0
+    score = 50
 
     try:
 
-        ma25 = close.rolling(25).mean()
-        ma75 = close.rolling(75).mean()
+        close = df["Close"].astype(float)
 
-        if ma25.iloc[-1] > ma75.iloc[-1]:
-            score += 30
+        if len(close) >= 75:
 
-        if close.iloc[-1] > ma25.iloc[-1]:
-            score += 20
+            ma25 = close.rolling(25).mean()
+            ma75 = close.rolling(75).mean()
 
-        vol20 = volume.tail(20).mean()
+            if ma25.iloc[-1] > ma75.iloc[-1]:
+                score += 15
 
-        if volume.iloc[-1] > vol20:
-            score += 20
+            if close.iloc[-1] > ma25.iloc[-1]:
+                score += 15
 
-        momentum = (
-            (
-                float(close.iloc[-1])
-                - float(close.iloc[-20])
-            )
-            / float(close.iloc[-20])
-        ) * 100
+        if "Volume" in df.columns:
 
-        score += min(
-            max(int(momentum), 0),
-            30
-        )
+            volume = df["Volume"].astype(float)
 
-    except:
-        pass
+            if len(volume) >= 20:
 
-    return score
+                vol20 = volume.tail(20).mean()
+
+                if vol20 > 0 and volume.iloc[-1] > vol20:
+                    score += 10
+
+        if len(close) >= 20:
+
+            momentum = (
+                (close.iloc[-1] - close.iloc[-20])
+                / close.iloc[-20]
+            ) * 100
+
+            score += min(max(int(momentum), 0), 10)
+
+    except Exception as e:
+
+        print(f"score error: {e}")
+
+    return int(score)
 
 
 def run():
@@ -65,7 +72,6 @@ def run():
                 continue
 
             close = df["Close"]
-            volume = df["Volume"]
 
             patterns = []
 
@@ -81,10 +87,7 @@ def run():
             if not patterns:
                 continue
 
-            score = score_stock(
-                close,
-                volume
-            )
+            score = score_stock(df)
 
             candidates.append(
                 (
@@ -95,8 +98,9 @@ def run():
                 )
             )
 
-        except:
-            pass
+        except Exception as e:
+
+            print(f"error {ticker}: {e}")
 
     candidates.sort(
         reverse=True,
@@ -108,9 +112,9 @@ def run():
     body += f"監視銘柄数: {len(tickers)}\n"
     body += f"候補数: {len(candidates)}\n\n"
 
-    rank = 1
+    for rank, item in enumerate(candidates[:20], start=1):
 
-    for score, ticker, name, pattern in candidates[:20]:
+        score, ticker, name, pattern = item
 
         body += (
             f"{rank}位\n"
@@ -118,8 +122,6 @@ def run():
             f"{pattern}\n"
             f"スコア:{score}\n\n"
         )
-
-        rank += 1
 
     send_mail(body)
 
