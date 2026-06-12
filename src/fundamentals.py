@@ -1,4 +1,5 @@
 import yfinance as yf
+from datetime import datetime
 
 
 def get_fundamentals(ticker):
@@ -23,14 +24,22 @@ def get_fundamentals(ticker):
             None
         )
 
+        month = "-"
+
+        if ex_dividend:
+
+            month = datetime.fromtimestamp(
+                ex_dividend
+            ).strftime("%Y-%m")
+
         return {
             "yield": dividend_yield,
-            "month": ex_dividend
+            "month": month
         }
 
     except Exception:
 
         return {
             "yield": None,
-            "month": None
+            "month": "-"
         }
