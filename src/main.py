@@ -1,4 +1,5 @@
 from data_loader import get_stock_data
+from tickers_loader import load_tickers
 
 from patterns import (
     detect_double_bottom,
@@ -6,8 +7,70 @@ from patterns import (
     detect_ascending_triangle
 )
 
-from mailer import send_mail
-from tickers_loader import load_tickers
+from ta.trend import PSARIndicator
+
+
+def send_mail(body):
+
+    from mailer import send_mail as mail
+
+    mail(body)
+
+
+def is_psar_bullish(df):
+
+    try:
+
+        psar = PSARIndicator(
+            high=df["High"].squeeze(),
+            low=df["Low"].squeeze(),
+            close=df["Close"].squeeze()
+        )
+
+        psar_values = psar.psar()
+
+        close = df["Close"].squeeze()
+
+        return close.iloc[-1] > psar_values.iloc[-1]
+
+    except:
+
+        return False
+
+
+def score_stock(df):
+
+    score = 0
+
+    close = df["Close"].squeeze()
+    volume = df["Volume"].squeeze()
+
+    if len(close) < 75:
+        return 0
+
+    ma25 = close.rolling(25).mean()
+    ma75 = close.rolling(75).mean()
+
+    if close.iloc[-1] > ma25.iloc[-1]:
+        score += 20
+
+    if ma25.iloc[-1] > ma75.iloc[-1]:
+        score += 20
+
+    vol20 = volume.tail(20).mean()
+
+    if vol20 > 0 and volume.iloc[-1] > vol20 * 1.2:
+        score += 20
+
+    high52 = close.tail(252).max()
+
+    if close.iloc[-1] >= high52 * 0.95:
+        score += 20
+
+    if is_psar_bullish(df):
+        score += 20
+
+    return score
 
 
 def run():
@@ -27,12 +90,6 @@ def run():
 
             close = df["Close"].squeeze()
 
-            if len(close) < 75:
-                continue
-
-            ma25 = close.rolling(25).mean()
-            ma75 = close.rolling(75).mean()
-
             patterns = []
 
             if detect_inverse_head_shoulders(close):
@@ -47,48 +104,51 @@ def run():
             if not patterns:
                 continue
 
-            score = 0
+            score = score_stock(df)
 
-            if close.iloc[-1] > ma25.iloc[-1]:
-                score += 1
-
-            if ma25.iloc[-1] > ma75.iloc[-1]:
-                score += 1
-
-            if score == 0:
+            if score < 40:
                 continue
+
+            psar_text = ""
+
+            if is_psar_bullish(df):
+                psar_text = "PSAR点灯"
 
             candidates.append(
                 (
                     score,
                     ticker,
                     name,
-                    ",".join(patterns)
+                    ",".join(patterns),
+                    psar_text
                 )
             )
 
         except Exception as e:
-            print(f"{ticker}: {e}")
+
+            print(e)
 
     candidates.sort(
         reverse=True,
         key=lambda x: x[0]
     )
 
-    body = "【TOPIX500 ブレイクアウト候補】\n\n"
+    body = "【TOPIX500 有力候補ランキング V6】\n\n"
 
     body += f"監視銘柄数: {len(tickers)}\n"
     body += f"候補数: {len(candidates)}\n\n"
 
     for rank, item in enumerate(candidates[:30], start=1):
 
-        score, ticker, name, pattern = item
+        score, ticker, name, pattern, psar_text = item
 
         body += (
             f"{rank}位\n"
             f"{ticker} {name}\n"
             f"{pattern}\n"
-            f"条件達成数:{score}/2\n\n"
+            f"{psar_text}\n"
+            f"スコア:{score}\n"
+            f"https://finance.yahoo.co.jp/quote/{ticker}\n\n"
         )
 
     send_mail(body)
